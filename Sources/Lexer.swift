@@ -1,35 +1,160 @@
 import Foundation
 
-class Token {
+enum TokenValue {
 
+    // Numbers
+    case integer(value: Int)
+    case float(value: Float)
+
+    // String-based
+    case identifier(name: String)
+    case string(value: String)
+
+    // Logical operators
+    case andOperator
+    case orOperator
+
+    // Arithmetic operators
+    case plusOperator
+    case minusOperator
+    case multiplicationOperator
+    case divisionOperator
+    case moduleOperator
+
+    // Control flow
+    case ifCommand
 }
 
 
-class Lexer {
+class Token {
 
-    private let stream: BufferedCharacterStream
+    let value: TokenValue
 
-    init(_ input: InputStream) {
-        self.stream = BufferedCharacterStream(input)
-    }
-
-    var hasMoreTokens: Bool {
-
-    }
-
-    func getNextToken() -> Token {
-
-    }
-
-    func close() {
-        stream.close()
+    init(value: TokenValue) {
+        self.value = value
     }
 
 }
 
 
 enum LexerError: Error {
-    case endOfInput
+    case unexpectedEndOfInput
+    case unknownCharacter(char: UnicodeScalar)
+    case unexpectedCharacter
+}
+
+
+class Lexer {
+
+    private enum LexerChar {
+        case digit(char: UnicodeScalar)
+        case alpha(char: UnicodeScalar)
+        case whitespace
+    }
+
+    private let input: BufferedCharacterStream
+
+    init(_ input: InputStream) {
+        self.input = BufferedCharacterStream(input)
+        input.open()
+    }
+
+    var hasMoreTokens: Bool {
+        return input.hasCharactersAvailable
+    }
+
+    func getNextToken() throws -> TokenValue {
+        while input.hasCharactersAvailable {
+            switch try! peekNextCharacter() {
+            case .digit:
+                return try parseNumber()
+            case .alpha:
+                return try parseIdentifier()
+            case .whitespace:
+                input.advancePosition()
+                continue
+            }
+        }
+
+        throw LexerError.unexpectedEndOfInput
+    }
+
+    private func peekNextCharacter() throws -> LexerChar {
+        let char = try input.peekNextCharacter()
+
+        if isDigit(char) {
+            return LexerChar.digit(char: char)
+        } else if isAlpha(char) {
+            return LexerChar.alpha(char: char)
+        } else if isWhitespace(char) {
+            return LexerChar.whitespace
+        } else {
+            throw LexerError.unknownCharacter(char: char)
+        }
+    }
+
+    private func parseNumber() throws -> TokenValue {
+        var number: String = ""
+
+        var isFractional = false
+        while input.hasCharactersAvailable {
+            let char = try! input.peekNextCharacter()
+
+            if isWhitespaceOrNewline(char) {
+                break
+            }
+
+            guard isValidNumberCharacter(char) else {
+                throw LexerError.unexpectedCharacter
+            }
+
+            if char == "." {
+                isFractional = true
+            }
+
+            number.append(Character(char))
+            input.advancePosition()
+        }
+
+        if (isFractional) {
+            return .float(value: Float(number)!)
+        } else {
+            return .integer(value: Int(number)!)
+        }
+    }
+
+    private func isValidNumberCharacter(_ char: UnicodeScalar) -> Bool {
+        return isDigit(char) || char == "."
+    }
+
+    private func parseIdentifier() throws -> TokenValue {
+        return .identifier(name: "poiana")
+    }
+
+    private func isDigit(_ char: UnicodeScalar) -> Bool {
+        return CharacterSet.decimalDigits.contains(char)
+    }
+
+    private func isAlpha(_ char: UnicodeScalar) -> Bool {
+        return CharacterSet.letters.contains(char)
+    }
+
+    private func isWhitespaceOrNewline(_ char: UnicodeScalar) -> Bool {
+        return CharacterSet.whitespacesAndNewlines.contains(char)
+    }
+
+    private func isWhitespace(_ char: UnicodeScalar) -> Bool {
+        return CharacterSet.whitespacesAndNewlines.contains(char)
+    }
+
+    private func isNewline(_ char: UnicodeScalar) -> Bool {
+        return CharacterSet.newlines.contains(char)
+    }
+
+    func close() {
+        input.close()
+    }
+
 }
 
 
@@ -50,23 +175,32 @@ private class BufferedCharacterStream {
     }
 
     var hasCharactersAvailable: Bool {
-        return pos != length || input.hasBytesAvailable
+        return pos < length || input.hasBytesAvailable
     }
 
-    func getNextCharacter() -> Character {
-        if pos == length && input.hasBytesAvailable {
-            try! readFromStream()
+    func getNextCharacter() throws -> UnicodeScalar {
+        let char = try peekNextCharacter()
+        pos += 1
+        return char
+    }
+
+    func peekNextCharacter() throws -> UnicodeScalar {
+        if pos >= length {
+            try readFromStream()
         }
 
         let value = buffer[pos]
-        pos += 1
 
-        return Character(UnicodeScalar(value))
+        return UnicodeScalar(value)
+    }
+
+    func advancePosition() {
+        pos += 1
     }
 
     private func readFromStream() throws {
-        if !input.hasBytesAvailable {
-            throw LexerError.endOfInput
+        guard input.hasBytesAvailable else {
+            throw LexerError.unexpectedEndOfInput
         }
         length = input.read(&buffer, maxLength: BufferedCharacterStream.MaxBufferLength)
         pos = 0
