@@ -13,6 +13,15 @@ enum TokenValue {
     // Logical operators
     case andOperator
     case orOperator
+    case notOperator
+
+    // Comparison operators
+    case eqOperator
+    case neqOperator
+    case gtOperator
+    case gteOperator
+    case ltOperator
+    case lteOperator
 
     // Arithmetic operators
     case plusOperator
@@ -46,12 +55,6 @@ enum LexerError: Error {
 
 class Lexer {
 
-    private enum LexerChar {
-        case digit(char: UnicodeScalar)
-        case alpha(char: UnicodeScalar)
-        case whitespace
-    }
-
     private let input: BufferedCharacterStream
 
     init(_ input: InputStream) {
@@ -65,32 +68,18 @@ class Lexer {
 
     func getNextToken() throws -> TokenValue {
         while input.hasCharactersAvailable {
-            switch try! peekNextCharacter() {
-            case .digit:
+            let char = try! input.peekNextCharacter()
+            if isDigit(char) {
                 return try parseNumber()
-            case .alpha:
+            } else if isAlpha(char) {
                 return try parseIdentifier()
-            case .whitespace:
+            } else if isWhitespaceOrNewline(char) {
+                // Ignore whitespaces and newlines
                 input.advancePosition()
-                continue
             }
         }
 
         throw LexerError.unexpectedEndOfInput
-    }
-
-    private func peekNextCharacter() throws -> LexerChar {
-        let char = try input.peekNextCharacter()
-
-        if isDigit(char) {
-            return LexerChar.digit(char: char)
-        } else if isAlpha(char) {
-            return LexerChar.alpha(char: char)
-        } else if isWhitespace(char) {
-            return LexerChar.whitespace
-        } else {
-            throw LexerError.unknownCharacter(char: char)
-        }
     }
 
     private func parseNumber() throws -> TokenValue {
