@@ -28,7 +28,7 @@ internal class Lexer {
             } else if isLetter(char) {
                 tokenValue = try parseLetterPrefixedToken()
             } else {
-                throw ParserError.unexpectedCharacter
+                tokenValue = try parseSymbolPrefixedToken()
             }
             let endPosition = characterStream.currentPosition
 
@@ -39,7 +39,7 @@ internal class Lexer {
     }
 
     private func parseNumber() throws -> TokenValue {
-        var number: String = ""
+        var rawValue: String = ""
 
         var isFractional = false
         while characterStream.hasCharactersAvailable {
@@ -57,38 +57,100 @@ internal class Lexer {
                 isFractional = true
             }
 
-            number.append(Character(char))
+            rawValue.append(Character(char))
             characterStream.advancePosition()
         }
 
         if (isFractional) {
-            return .float(value: Float(number)!)
+            return .float(value: Float(rawValue)!)
         } else {
-            return .integer(value: Int(number)!)
+            return .integer(value: Int(rawValue)!)
         }
     }
 
     private func parseLetterPrefixedToken() throws -> TokenValue {
-        var value: String = ""
+        var rawValue: String = ""
 
+        let char = try! characterStream.peekNextCharacter()
+
+        // The first character MUST be a letter
+        guard isLetter(char) else {
+            throw ParserError.unexpectedCharacter
+        }
+
+        rawValue.append(Character(char))
+        characterStream.advancePosition()
+
+        // Subsequent characters can be letters or numbers
         while characterStream.hasCharactersAvailable {
             let char = try! characterStream.peekNextCharacter()
 
-            guard isLetter(char) else {
+            guard isAlphanumeric(char) else {
                 throw ParserError.unexpectedCharacter
             }
 
-            value.append(Character(char))
+            if isWhitespaceOrNewline(char) {
+                break
+            }
+
+            rawValue.append(Character(char))
             characterStream.advancePosition()
         }
 
-        switch value.lowercased() {
+        switch rawValue.lowercased() {
+        // Logical operators
         case "and": return .andOperator
         case "or": return .orOperator
         case "xor": return .xorOperator
         case "not": return .notOperator
-        default: return .identifier(name: value)
+        default: return .identifier(name: rawValue)
         }
+    }
+
+    private func parseSymbolPrefixedToken() throws -> TokenValue {
+        var rawValue: String = ""
+
+        let char = try! characterStream.peekNextCharacter()
+
+        if char == "\"" {
+            return try parseStringToken()
+        }
+
+        rawValue.append(Character(char))
+        characterStream.advancePosition()
+
+        while characterStream.hasCharactersAvailable {
+            let char = try! characterStream.peekNextCharacter()
+
+            if isWhitespaceOrNewline(char) {
+                break
+            }
+
+            rawValue.append(Character(char))
+            characterStream.advancePosition()
+        }
+
+        switch rawValue {
+        // Boolean operators
+        case ">": return .gtOperator
+        case ">=": return .gteOperator
+        case "<": return .ltOperator
+        case "<=": return .lteOperator
+        case "<>": return .neqOperator
+        case "=": return .eqOperator
+
+        // Arithmetic operators
+        case "+": return .plusOperator
+        case "-": return .minusOperator
+        case "/": return .divisionOperator
+        case "*": return .multiplicationOperator
+        case "%": return .moduloOperator
+        default: throw ParserError.unknownToken(rawValue: rawValue)
+        }
+    }
+
+    private func parseStringToken() throws -> TokenValue {
+        return .string(value: "poiana")
     }
 
     private func isDigit(_ char: UnicodeScalar) -> Bool {
@@ -97,6 +159,10 @@ internal class Lexer {
 
     private func isValidNumberCharacter(_ char: UnicodeScalar) -> Bool {
         return isDigit(char) || char == "."
+    }
+
+    private func isAlphanumeric(_ char: UnicodeScalar) -> Bool {
+        return CharacterSet.alphanumerics.contains(char)
     }
 
     private func isLetter(_ char: UnicodeScalar) -> Bool {

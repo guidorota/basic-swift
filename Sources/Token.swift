@@ -46,7 +46,7 @@ enum TokenValue {
     case minusOperator
     case multiplicationOperator
     case divisionOperator
-    case moduleOperator
+    case moduloOperator
 
     // Control flow
     case ifCommand
