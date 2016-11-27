@@ -30,6 +30,7 @@ enum TokenValue {
     // Logical operators
     case andOperator
     case orOperator
+    case xorOperator
     case notOperator
 
     // Comparison operators

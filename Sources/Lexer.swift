@@ -25,8 +25,8 @@ internal class Lexer {
             var tokenValue: TokenValue
             if isDigit(char) {
                 tokenValue = try parseNumber()
-            } else if isAlpha(char) {
-                tokenValue = try parseIdentifier()
+            } else if isLetter(char) {
+                tokenValue = try parseLetterPrefixedToken()
             } else {
                 throw ParserError.unexpectedCharacter
             }
@@ -68,8 +68,27 @@ internal class Lexer {
         }
     }
 
-    private func parseIdentifier() throws -> TokenValue {
-        return .identifier(name: "poiana")
+    private func parseLetterPrefixedToken() throws -> TokenValue {
+        var value: String = ""
+
+        while characterStream.hasCharactersAvailable {
+            let char = try! characterStream.peekNextCharacter()
+
+            guard isLetter(char) else {
+                throw ParserError.unexpectedCharacter
+            }
+
+            value.append(Character(char))
+            characterStream.advancePosition()
+        }
+
+        switch value.lowercased() {
+        case "and": return .andOperator
+        case "or": return .orOperator
+        case "xor": return .xorOperator
+        case "not": return .notOperator
+        default: return .identifier(name: value)
+        }
     }
 
     private func isDigit(_ char: UnicodeScalar) -> Bool {
@@ -80,7 +99,7 @@ internal class Lexer {
         return isDigit(char) || char == "."
     }
 
-    private func isAlpha(_ char: UnicodeScalar) -> Bool {
+    private func isLetter(_ char: UnicodeScalar) -> Bool {
         return CharacterSet.letters.contains(char)
     }
 
