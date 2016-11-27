@@ -12,5 +12,6 @@ repeat {
         continue
     }
 
-    parser.parse(InputStream(data: line.data(using: .utf8)!))
+    parser.parse(line)
+
 } while true
